@@ -47,3 +47,13 @@ baseq2/**/*.txt
 !baseq2/*.txt
 !baseq2/maps/sky/*.txt
 !baseq2/pics/flashlight_profile.png
+baseq2/config.cfg
+baseq2/maps.lst
+baseq2/maps/trdm01-06.html
+baseq2/maps/trdm01a.rtz
+baseq2/maps/trdm02a.html
+baseq2/maps/trdm02a.rtz
+baseq2/maps/trdm03a.rtz
+baseq2/maps/trdm04a.rtz
+baseq2/maps/trdm05a.rtz
+baseq2/maps/trdm06.rtz
