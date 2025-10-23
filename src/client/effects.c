@@ -111,6 +111,7 @@ cdlight_t *CL_AllocDlight(int key)
             if (dl->key == key) {
                 memset(dl, 0, sizeof(*dl));
                 dl->key = key;
+                dl->born = cl.time;
                 return dl;
             }
         }
@@ -122,6 +123,7 @@ cdlight_t *CL_AllocDlight(int key)
         if (dl->die < cl.time) {
             memset(dl, 0, sizeof(*dl));
             dl->key = key;
+            dl->born = cl.time;
             return dl;
         }
     }
@@ -129,6 +131,7 @@ cdlight_t *CL_AllocDlight(int key)
     dl = &cl_dlights[0];
     memset(dl, 0, sizeof(*dl));
     dl->key = key;
+    dl->born = cl.time;
     return dl;
 }
 
@@ -146,7 +149,11 @@ void CL_AddDLights(void)
     for (i = 0; i < MAX_DLIGHTS; i++, dl++) {
         if (dl->die < cl.time)
             continue;
-        V_AddLight(dl->origin, dl->radius,
+        float seconds_alive = (cl.time - dl->born) / 1000.f;
+        float radius = dl->radius - dl->decay * seconds_alive;
+        vec3_t origin;
+        VectorMA(dl->origin, seconds_alive, dl->velosity, origin);
+        V_AddLight(origin, radius,
                    dl->color[0], dl->color[1], dl->color[2]);
     }
 }
@@ -1433,8 +1440,9 @@ CL_DiminishingTrail
 
 ===============
 */
-void CL_DiminishingTrail(const vec3_t start, const vec3_t end, centity_t *old, int flags)
+void CL_DiminishingTrail(const vec3_t start, const vec3_t end, centity_t *old, diminishing_trail_t type)
 {
+    static const byte colors[DT_COUNT] = { 0xe8, 0xdb, 0x04, 0xd8 };
     vec3_t      move;
     vec3_t      vec;
     float       len;
@@ -1470,49 +1478,28 @@ void CL_DiminishingTrail(const vec3_t start, const vec3_t end, centity_t *old, i
             p = CL_AllocParticle();
             if (!p)
                 return;
-            VectorClear(p->accel);
 
+            VectorClear(p->accel);
             p->time = cl.time;
 
-            if (flags & EF_GIB) {
-                p->alpha = 1.0;
-                p->alphavel = -1.0f / (1 + frand() * 0.4f);
+            p->alpha = 1.0f;
+            p->alphavel = -1.0f / (1 + frand() * (type == DT_SMOKE ? 0.2f : 0.4f));
+            p->brightness = 1.0f;
 
-                p->color = 0xe8 + (Q_rand() & 7);
-				p->brightness = 1.0f;
-
-                for (j = 0; j < 3; j++) {
-                    p->org[j] = move[j] + crand() * orgscale;
-                    p->vel[j] = crand() * velscale;
-                    p->accel[j] = 0;
-                }
-                p->vel[2] -= PARTICLE_GRAVITY;
-            } else if (flags & EF_GREENGIB) {
-                p->alpha = 1.0f;
-                p->alphavel = -1.0f / (1 + frand() * 0.4f);
-
-                p->color = 0xdb + (Q_rand() & 7);
-				p->brightness = 1.0f;
-
-                for (j = 0; j < 3; j++) {
-                    p->org[j] = move[j] + crand() * orgscale;
-                    p->vel[j] = crand() * velscale;
-                    p->accel[j] = 0;
-                }
-                p->vel[2] -= PARTICLE_GRAVITY;
-            } else {
-                p->alpha = 1.0f;
-                p->alphavel = -1.0f / (1 + frand() * 0.2f);
-
-                p->color = 4 + (Q_rand() & 7);
-				p->brightness = 1.0f;
-
-                for (j = 0; j < 3; j++) {
-                    p->org[j] = move[j] + crand() * orgscale;
-                    p->vel[j] = crand() * velscale;
-                }
-                p->accel[2] = 20;
+            for (j = 0; j < 3; j++) {
+                p->org[j] = move[j] + crand() * orgscale;
+                p->vel[j] = crand() * velscale;
             }
+
+            if (type >= DT_SMOKE)
+                p->accel[2] = 20;
+            else
+                p->vel[2] -= PARTICLE_GRAVITY;
+
+            if (type == DT_FIREBALL)
+                p->color = colors[type] + (1024 - old->trailcount) / 64;
+            else
+                p->color = colors[type] + (Q_rand() & 7);
         }
 
         old->trailcount -= 5;
@@ -1538,7 +1525,7 @@ void CL_RocketTrail(const vec3_t start, const vec3_t end, centity_t *old)
     float       dec;
 
     // smoke
-    CL_DiminishingTrail(start, end, old, EF_ROCKET);
+    CL_DiminishingTrail(start, end, old, DT_SMOKE);
 
     // fire
     VectorCopy(start, move);
